@@ -15,8 +15,8 @@ script = ExtResource( 2 )
 
 [node name="Area" type="Area" parent="."]
 transform = Transform( 2.62905, -2.98023e-08, 0, -2.98023e-08, 2.62905, 0, 0, -5.96046e-08, 15.3781, 0, 0, 0 )
-gravity = 0.0
 collision_layer = 0
+gravity = 0.0
 
 [node name="CollisionShape" type="CollisionShape" parent="Area"]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1 )
