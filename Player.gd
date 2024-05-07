@@ -1,4 +1,4 @@
-extends KinematicBody
+extends AI
 
 const MOVE_SPEED = 20
 const MOUSE_SENS = 0.5
@@ -42,3 +42,4 @@ func shoot():
   var decal = decal_projector.instance()
   get_tree().get_root().add_child(decal)
   decal.global_transform = fire_point.global_transform
+  

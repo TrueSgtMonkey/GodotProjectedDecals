@@ -1,10 +1,40 @@
 extends ImmediateGeometry
 
-onready var area = $Area
+const Z_BUFFER_DIS: float = 0.01 
+const MIN_ANGLE: float = 0.0 #scale of 1.0 to 0.0
+const DEFAULT_TEXTURE: Texture = preload("res://icon.png")
 
-const Z_BUFFER_DIS = 0.01 
-const MIN_ANGLE = 0.0 #scale of 1.0 to 0.0
-var frame_count = 0
+export (Texture) var texture_to_apply = null
+export (BoxShape) var shape_to_apply = null
+
+var frame_count: int = 0
+var all_norms: Array = []
+var all_verts: Array = []
+var verts_to_norms: Dictionary = {}
+var planes: Array = []
+var y_ratio: float
+
+var area: Area = null
+var collision: CollisionShape = null
+
+func _ready():
+  area = $Area
+  collision = $Area/CollisionShape
+  
+  var material: SpatialMaterial = material_override
+  if texture_to_apply != null:
+    material.albedo_texture = texture_to_apply
+  else:
+    material.albedo_texture = DEFAULT_TEXTURE
+  
+  if shape_to_apply != null:
+    y_ratio = float(texture_to_apply.get_height()) / float(texture_to_apply.get_width())
+    print("y_ratio: ", y_ratio)
+    shape_to_apply.extents.y *= y_ratio
+    collision.shape = shape_to_apply
+  else:
+    y_ratio = 1.0
+
 func _physics_process(delta):
   frame_count += 1
   if frame_count != 3: #takes a few frames to load colliders in area for some reason
@@ -15,31 +45,41 @@ func perform_projection():
   init_planes()
   var bodies = area.get_overlapping_bodies()
   for body in bodies:
-    # This is expecting the static bodies to have a MeshInstance parent
+    # This is expecting the static bodies to have a MeshInstance target
     # We have to make sure that we are retrieving a MeshInstance node before continuing
-    var parent = body.get_parent()
-    if "mesh" in parent:
-      if parent.mesh.get_surface_count() == 0:
-        continue
-      var arrays = parent.mesh.surface_get_arrays(0)
-      # if does not have array indices defined, create our own
-      if arrays[ArrayMesh.ARRAY_INDEX] == null:
-        if arrays[ArrayMesh.ARRAY_VERTEX].size() % 3 != 0: # if vertices not divisable by 3, ignore this mesh
-          continue
-        arrays[ArrayMesh.ARRAY_INDEX] = range(arrays[ArrayMesh.ARRAY_VERTEX].size())
-      
-      add_surfaces(parent, arrays[ArrayMesh.ARRAY_VERTEX], arrays[ArrayMesh.ARRAY_NORMAL], arrays[ArrayMesh.ARRAY_INDEX])
-  render_surfaces()
-  #area.queue_free()
+    var target: MeshInstance = get_mesh_instance_target(body)
+    if target == null || target.mesh.get_surface_count() == 0:
+      continue
 
-var all_norms = []
-var all_verts = []
-var verts_to_norms = {}
+    var arrays = target.mesh.surface_get_arrays(0)
+    # if does not have array indices defined, create our own
+    if arrays[ArrayMesh.ARRAY_INDEX] == null:
+      if arrays[ArrayMesh.ARRAY_VERTEX].size() % 3 != 0: # if vertices not divisable by 3, ignore this mesh
+        continue
+      arrays[ArrayMesh.ARRAY_INDEX] = range(arrays[ArrayMesh.ARRAY_VERTEX].size())
+    
+    add_surfaces(target, arrays[ArrayMesh.ARRAY_VERTEX], arrays[ArrayMesh.ARRAY_NORMAL], arrays[ArrayMesh.ARRAY_INDEX])
+  render_surfaces()
+  # Doesn't matter how we scale it now since we are done with the Area
+  scale.y *= y_ratio
+  area.queue_free()
+
+# Returns a reference to the MeshInstance that we want to project onto
+# Either the parent or one of the body's children must be a MeshInstance
+func get_mesh_instance_target(body: PhysicsBody) -> MeshInstance:
+  if body.get_parent() is MeshInstance:
+    return body.get_parent() as MeshInstance
+    
+  for child in body.get_children():
+    if child is MeshInstance:
+      return child
+  
+  return null
+
 func add_surfaces(base, vertices, normals, indices):
   #print("vertices", vertices)
   #print("normals", normals)
   #print("indices", indices)
-  var dir = global_transform.basis.z
   for i in range(0, indices.size(), 3):
     #convert normal to global direction
     #var normal = base.to_global(normals[indices[i]]) - base.global_transform.origin
@@ -222,7 +262,6 @@ func double_check_clipped_tris(tri_arr):
       clipped_verts.append(tri_arr[i+2])
   return PoolVector3Array(clipped_verts)
 
-var planes = []
 func init_planes():
   planes = []
   planes.append(Plane(Vector3.BACK, to_local(area.to_global(Vector3.BACK * 2)).length()))
